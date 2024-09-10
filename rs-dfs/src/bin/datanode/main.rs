@@ -1,41 +1,60 @@
-use clap::{Arg, Command};
-mod dnlib;
-use crate::dnlib::{new_datanode, DataNodeInstance};
-use rs_dfs::NodeAddress;
-use tarpc::{
-    context,
-    server::{self, BaseChannel},
-    serde_transport
-};
-use tokio;
-use std::{
-    net::{IpAddr, Ipv6Addr, SocketAddr}, thread::spawn, time::Duration
-};
+use tarpc::serde_transport::tcp;
+use tarpc::server::BaseChannel;
+use tokio_serde::formats::Json;
+use tokio::net::TcpListener;
+use tokio_stream::wrappers::TcpListenerStream;
+use futures::prelude::*;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use clap::{App, Arg};
+use crate::dnlib::{Datanode, DatanodeService};
 
-fn main() {
-    let matches = Command::new("HDFS Datanode")
-        .version("0.1.0")
-        .about("HDFS Datanode")
-        .arg_required_else_help(true)
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let matches = App::new("Datanode")
+        .version("1.0")
+        .author("Author Name <author@example.com>")
+        .about("Datanode server for distributed file system")
         .arg(
             Arg::new("port")
                 .short('p')
                 .long("port")
                 .value_name("PORT")
-                .help("Sets the port to listen on")
+                .about("Sets the port to listen on")
+                .default_value("4120")
+                .takes_value(true),
         )
         .arg(
             Arg::new("datadir")
                 .short('d')
                 .long("datadir")
                 .value_name("DATADIR")
-                .help("Sets the datadir")
-        ).get_matches();
+                .about("Sets the directory to store file blocks")
+                .default_value(".data")
+                .takes_value(true),
+        )
+        .get_matches();
 
-    let port = matches.get_one::<String>("port").map(String::as_str).unwrap_or("8080");
-    let datadir = matches.get_one::<String>("datadir").map(String::as_str).unwrap_or("data");
+    let port = matches.value_of("port").unwrap();
+    let datadir = matches.value_of("datadir").unwrap();
 
-    println!("Port: {}", port);
-    println!("Datadir: {}", datadir);
+    let addr = format!("127.0.0.1:{}", port);
+
+    let data = Arc::new(Mutex::new(Vec::new()));
+    let server = Datanode { data };
+
+    let listener = TcpListener::bind(&addr).await?;
+    println!("Server started at {}", addr);
+
+    TcpListenerStream::new(listener)
+        .for_each(|stream| async {
+            if let Ok(stream) = stream {
+                let transport = tcp::listen(stream, Json::default);
+                let channel = BaseChannel::with_defaults(transport);
+                channel.execute(server.serve());
+            }
+        })
+        .await;
+
+    Ok(())
 }
-
