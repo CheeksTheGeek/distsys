@@ -1,0 +1,12 @@
+[package]
+name = "rs-dfs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.17", features = ["derive"] }
+crossterm = "0.28.1"
+serde = "1.0.210"
+tarpc = { version = "0.34.0", features = ["serde-transport"] }
+termion = "4.0.2"
+tokio = "1.40.0"
