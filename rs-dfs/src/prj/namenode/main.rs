@@ -12,8 +12,11 @@ use std::fs;
 use serde_json;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
+use uuid::Uuid;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SerializableNodeAddress {
     host: String,
     port: u32,
@@ -37,14 +40,14 @@ impl From<SerializableNodeAddress> for NodeAddress {
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct NameNodeState {
     pub block_size: u32,
     pub repl_factor: u32,
     pub data_nodes: Vec<(SerializableNodeAddress, bool)>,
     pub file_name_to_blocks: HashMap<String, Vec<String>>,
     pub block_to_data_node_ids: HashMap<String, Vec<String>>,
-    pub id_to_data_nodes: HashMap<String, NodeAddress>,
+    pub id_to_data_nodes: HashMap<String, SerializableNodeAddress>,
 }
 
 impl NameNodeState {
@@ -62,7 +65,7 @@ impl NameNodeState {
 
 #[derive(Debug, Default)]
 pub struct NameNodeService {
-    state: NameNodeState,
+    state: Arc<RwLock<NameNodeState>>,
 }
 
 #[tonic::async_trait]
@@ -70,7 +73,8 @@ impl NameNode for NameNodeService {
     async fn block_size(&self, request: Request<BlockSizeRequest>) -> Result<Response<BlockSizeResponse>, Status> {
         let req = request.into_inner();
         if req.pulse {
-            let response = BlockSizeResponse { block_size: self.state.block_size };
+            let state = self.state.read().await;
+            let response = BlockSizeResponse { block_size: state.block_size };
             Ok(Response::new(response))
         } else {
             Err(Status::invalid_argument("Invalid request"))
@@ -79,13 +83,14 @@ impl NameNode for NameNodeService {
 
     async fn read_file(&self, request: Request<ReadFileRequest>) -> Result<Response<ReadFileResponse>, Status> {
         let req = request.into_inner();
-        let file_blocks = self.state.file_name_to_blocks.get(&req.filename);
+        let state = self.state.read().await;
+        let file_blocks = state.file_name_to_blocks.get(&req.filename);
         if let Some(blocks) = file_blocks {
             let mut data = Vec::new();
             for block in blocks {
-                if let Some(data_node_ids) = self.state.block_to_data_node_ids.get(block) {
+                if let Some(data_node_ids) = state.block_to_data_node_ids.get(block) {
                     for data_node_id in data_node_ids {
-                        if let Some(data_node) = self.state.id_to_data_nodes.get(data_node_id) {
+                        if let Some(data_node) = state.id_to_data_nodes.get(data_node_id) {
                             data.push(data_node.clone());
                         }
                     }
@@ -102,8 +107,10 @@ impl NameNode for NameNodeService {
         let req = request.into_inner();
         let file_name = req.filename;
         let file_size = req.data.len() as u32;
-        let num_blocks = (file_size + self.state.block_size - 1) / self.state.block_size;
-        let blocks = self.assign_blocks_for_file(file_name.clone(), num_blocks).await?;
+        let state = self.state.read().await;
+        let num_blocks = (file_size + state.block_size - 1) / state.block_size;
+        let request = Request::new(AssignBlocksForFileRequest { filename: file_name.clone() });
+        let blocks = self.assign_blocks_for_file(request).await?.into_inner().nodes;
         let response = WriteFileResponse { success: true };
         Ok(Response::new(response))
     }
@@ -112,21 +119,26 @@ impl NameNode for NameNodeService {
         let req = request.into_inner();
         let data_node_uri = format!("{}:{}", req.host, req.port);
         let mut under_replicated_blocks = Vec::new();
-        for (block, data_node_ids) in self.state.block_to_data_node_ids.iter_mut() {
+        let mut new_nodes = Vec::new();
+
+        // Use a write lock to modify the state
+        let mut state = self.state.write().await;
+
+        for (block, data_node_ids) in state.block_to_data_node_ids.iter() {
             if data_node_ids.contains(&data_node_uri) {
+                let mut data_node_ids = data_node_ids.clone();
                 data_node_ids.retain(|id| id != &data_node_uri);
-                if data_node_ids.len() < self.state.repl_factor as usize {
+                if data_node_ids.len() < state.repl_factor as usize {
                     under_replicated_blocks.push(block.clone());
                 }
             }
         }
-        self.state.id_to_data_nodes.remove(&data_node_uri);
-        let mut new_nodes = Vec::new();
+        state.id_to_data_nodes.remove(&data_node_uri);
         for block in under_replicated_blocks {
-            if let Some(data_node_ids) = self.state.block_to_data_node_ids.get(&block) {
+            if let Some(data_node_ids) = state.block_to_data_node_ids.get(&block) {
                 for data_node_id in data_node_ids {
-                    if let Some(data_node) = self.state.id_to_data_nodes.get(data_node_id) {
-                        new_nodes.push(data_node.clone());
+                    if let Some(data_node) = state.id_to_data_nodes.get(data_node_id) {
+                        new_nodes.push(NodeAddress::from((*data_node).clone()));
                     }
                 }
             }
@@ -139,9 +151,10 @@ impl NameNode for NameNodeService {
         let req = request.into_inner();
         let file_name = req.filename;
         let mut blocks = Vec::new();
-        for _ in 0..self.state.repl_factor {
-            let block_id = format!("block_{}", uuid::Uuid::new_v4());
-            self.state.file_name_to_blocks.entry(file_name.clone()).or_insert(Vec::new()).push(block_id.clone());
+        let mut state = self.state.write().await; // Change to write lock
+        for _ in 0..state.repl_factor {
+            let block_id = format!("block_{}", Uuid::new_v4());
+            state.file_name_to_blocks.entry(file_name.clone()).or_insert(Vec::new()).push(block_id.clone());
             blocks.push(block_id);
         }
         let response = AssignBlocksForFileResponse { nodes: blocks };
@@ -210,7 +223,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let server = Server::builder()
-        .add_service(NameNodeServer::new(NameNodeService { state }))
+        .add_service(NameNodeServer::new(NameNodeService { state: Arc::new(RwLock::new(state)) }))
         .serve(SocketAddr::from_str(&nn_addr).unwrap());
 
     tokio::spawn(async move {
