@@ -6,7 +6,7 @@ service DataNode {
     rpc Pulse(PulseRequest) returns (PulseResponse) {}
     rpc GetData(GetDataRequest) returns (GetDataResponse) {}
     rpc PutData(PutDataRequest) returns (PutDataResponse) {}
-    rpc ReplicationPassthrough(ReplicationPassthroughRequest) returns (ReplicationPassthroughResponse) {}
+    // rpc ReplicationPassthrough(ReplicationPassthroughRequest) returns (ReplicationPassthroughResponse) {}
 }
 
 // can act as both a heartbeat (pulse = true) and a initial ping (pulse = false)
@@ -31,18 +31,19 @@ message GetDataResponse {
 message PutDataRequest {
     string block_id = 1;
     bytes data = 2;
+    repeated string nodes_left = 3;
 }
 
 message PutDataResponse {
     bool success = 1;
 }
 
-message ReplicationPassthroughRequest {
-    string block_id = 1;
-    bytes data = 2;
-    repeated string nodes_left = 3;
-}
+// message ReplicationPassthroughRequest {
+//     string block_id = 1;
+//     bytes data = 2;
+//     repeated string nodes_left = 3;
+// }
 
-message ReplicationPassthroughResponse {
-    bool success = 1;
-}
+// message ReplicationPassthroughResponse {
+//     bool success = 1;
+// }

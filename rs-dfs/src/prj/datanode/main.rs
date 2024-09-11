@@ -1,10 +1,11 @@
 use clap::{Arg, Command};
 use tonic::transport::Server;
-use datanode::data_node_server::DataNodeServer;
+use crate::datanode::data_node_server::DataNodeServer;
+use crate::datanode::data_node_client::DataNodeClient;
+mod dnlib;
 use dnlib::DataNodeService;
 use std::net::SocketAddr;
 use std::str::FromStr;
-mod dnlib;
 mod datanode {
     tonic::include_proto!("datanode");
 }

@@ -2,8 +2,9 @@ use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::Path;
 use tonic::{Request, Response, Status};
+use crate::datanode::data_node_client::DataNodeClient;
 use crate::datanode::data_node_server::DataNode;
-use crate::datanode::{PulseRequest, PulseResponse, GetDataRequest, GetDataResponse, PutDataRequest, PutDataResponse, ReplicationPassthroughRequest, ReplicationPassthroughResponse};
+use crate::datanode::{PulseRequest, PulseResponse, GetDataRequest, GetDataResponse, PutDataRequest, PutDataResponse};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 pub struct DataNodeState {
@@ -60,49 +61,65 @@ impl DataNode for DataNodeService {
     async fn put_data(&self, request: Request<PutDataRequest>) -> Result<Response<PutDataResponse>, Status> {
         let req = request.into_inner();
         let state = self.state.read().await;
-        let file_path = Path::new(&state.data_dir).join(req.block_id);
-        let mut file = OpenOptions::new().create(true).write(true).open(file_path).map_err(|e| Status::internal(format!("Failed to create file: {}", e)))?;
-        file.write_all(&req.data).map_err(|e| Status::internal(format!("Failed to write file: {}", e)))?;
-        file.flush().map_err(|e| Status::internal(format!("Failed to flush file: {}", e)))?;
-        
-        Ok(Response::new(PutDataResponse { success: true }))
-    }
-    // replication_passthrough Exhaustive Explanation:
-    //      1. Get the block ID and the replication nodes from the request
-    //      2. If there are no replication nodes, return nil
-    //      3. Get the starting data node from the block addresses
-    //      4. Get the remaining data nodes from the block addresses
-    //      5. Dial the starting data node and call the PutData method
-    //      6. Forward the data to the next data node for replication by calling the PutData method on the next data node
-    async fn replication_passthrough(&self, request: Request<ReplicationPassthroughRequest>) -> Result<Response<ReplicationPassthroughResponse>, Status> {
-        let req = request.into_inner();
-        if req.data.is_empty() {
-            return Ok(Response::new(ReplicationPassthroughResponse { success: false }));
-        }
-        let state = self.state.read().await;
         let file_path = Path::new(&state.data_dir).join(req.block_id.clone());
         let mut file = OpenOptions::new().create(true).write(true).open(file_path).map_err(|e| Status::internal(format!("Failed to create file: {}", e)))?;
         file.write_all(&req.data).map_err(|e| Status::internal(format!("Failed to write file: {}", e)))?;
         file.flush().map_err(|e| Status::internal(format!("Failed to flush file: {}", e)))?;
-        // Forward data to the next data node for replication
-        for node in &req.nodes_left {
-            // Implement forwarding logic here
-            // Call the PutData method on the next data node, in this case, we can just call ReplicationPassthroughRequest again with the remaining nodes
-            // This is done by creating a new ReplicationPassthroughRequest with the remaining nodes and calling the method again
-            let put_data_request = ReplicationPassthroughRequest {
-                block_id: req.block_id.clone(),
-                data: req.data.clone(),
-                nodes_left: req.nodes_left[1..].to_vec(),
-            };
-            let put_data_response = self.replication_passthrough(Request::new(put_data_request)).await?;
-            if !put_data_response.into_inner().success {
-                return Ok(Response::new(ReplicationPassthroughResponse { success: false }));
-            }
+        if req.nodes_left.len() > 0 {
+            pass_data_onto_next_dn(req.block_id.clone(), req.data, req.nodes_left).await?;
         }
-
-
-        Ok(Response::new(ReplicationPassthroughResponse { success: true }))
+        Ok(Response::new(PutDataResponse { success: true }))
     }
+
+
+    // async fn replication_passthrough(&self, request: Request<ReplicationPassthroughRequest>) -> Result<Response<ReplicationPassthroughResponse>, Status> {
+    //     let req = request.into_inner();
+    //     if req.data.is_empty() {
+    //         return Ok(Response::new(ReplicationPassthroughResponse { success: false }));
+    //     }
+    //     let state = self.state.read().await;
+    //     let file_path = Path::new(&state.data_dir).join(req.block_id.clone());
+    //     let mut file = OpenOptions::new().create(true).write(true).open(file_path).map_err(|e| Status::internal(format!("Failed to create file: {}", e)))?;
+    //     file.write_all(&req.data).map_err(|e| Status::internal(format!("Failed to write file: {}", e)))?;
+    //     file.flush().map_err(|e| Status::internal(format!("Failed to flush file: {}", e)))?;
+    //     // Forward data to the next data node for replication
+    //     for node in &req.nodes_left {
+    //         // Implement forwarding logic here
+    //         // Call the PutData method on the next data node, in this case, we can just call ReplicationPassthroughRequest again with the remaining nodes
+    //         // This is done by creating a new ReplicationPassthroughRequest with the remaining nodes and calling the method again
+    //         let put_data_request = ReplicationPassthroughRequest {
+    //             block_id: req.block_id.clone(),
+    //             data: req.data.clone(),
+    //             nodes_left: req.nodes_left[1..].to_vec(),
+    //         };
+    //         let put_data_response = self.replication_passthrough(Request::new(put_data_request)).await?;
+    //         if !put_data_response.into_inner().success {
+    //             return Ok(Response::new(ReplicationPassthroughResponse { success: false }));
+    //         }
+    //     }
+    
+    
+    //     Ok(Response::new(ReplicationPassthroughResponse { success: true }))
+    // }
 }
 
 
+// pass_data_onto_next_dn Exhaustive Explanation:
+//      1. Get the block ID and the replication nodes from the request
+//      2. If there are no replication nodes, return nil
+//      3. Get the starting data node from the block addresses
+//      4. Get the remaining data nodes from the block addresses
+//      5. Dial the starting data node and call the PutData method
+//      6. Forward the data to the next data node for replication by calling the PutData method on the next data node
+async fn pass_data_onto_next_dn(block_id: String, data: Vec<u8>, nodes_left: Vec<String>) -> Result<Response<PutDataResponse>, Status> {
+    let put_data_request = PutDataRequest {
+        block_id,
+        data,
+        nodes_left: nodes_left[1..].to_vec(),
+    };
+    // make grpc call to the next node, the nodes_left is formatted like this: "host:port,host:port,host:port"
+    let first_node = nodes_left.first().ok_or_else(|| Status::internal("No nodes left"))?;
+    let mut client = DataNodeClient::connect(format!("http://{}", first_node)).await.map_err(|e| Status::internal(format!("Failed to connect: {}", e)))?;
+    let put_data_response = client.put_data(put_data_request).await.map_err(|e| Status::internal(format!("Failed to put data: {}", e)))?;
+    Ok(put_data_response) 
+}

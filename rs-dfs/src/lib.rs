@@ -5,6 +5,15 @@ pub use ansi::{AnsiColor, AnsiStyle, ansi};
 
 use serde::{Serialize, Deserialize};
 
+
+mod namenode {
+    tonic::include_proto!("namenode");
+}
+
+mod datanode {
+    tonic::include_proto!("datanode");
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NodeAddress {
     pub host: String,

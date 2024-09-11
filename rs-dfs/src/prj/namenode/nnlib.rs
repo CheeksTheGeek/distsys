@@ -5,12 +5,18 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use crate::nnlib::datanode::data_node_client::DataNodeClient;
+use crate::nnlib::datanode::GetDataRequest;
+mod namenode {
+    tonic::include_proto!("namenode");
+}
+
+mod datanode {
+    tonic::include_proto!("datanode");
+}
 
 use crate::namenode::{ReadFileRequest, ReadFileResponse, NodeAddress, WriteFileRequest, WriteFileResponse, PhoenixingResult,BlockSizeRequest, BlockSizeResponse, AssignBlocksForFileRequest, AssignBlocksForFileResponse};
 use crate::namenode::name_node_server::NameNode;
-
-
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SerializableNodeAddress {
     pub host: String,
@@ -91,17 +97,29 @@ impl NameNode for NameNodeService {
         let state = self.state.read().await;
         let file_blocks = state.file_name_to_blocks.get(&req.filename);
         if let Some(blocks) = file_blocks {
-            let mut data = Vec::new();
-            for block in blocks {
-                if let Some(data_node_ids) = state.block_to_data_node_ids.get(block) {
-                    for data_node_id in data_node_ids {
+            let mut file_data = Vec::new();
+            for block_id in blocks {
+                if let Some(data_node_ids) = state.block_to_data_node_ids.get(block_id) {
+                    if let Some(data_node_id) = data_node_ids.first() {
                         if let Some(data_node) = state.id_to_data_nodes.get(data_node_id) {
-                            data.push(data_node.clone());
+                            let mut client = DataNodeClient::connect(format!("http://{}:{}", data_node.host, data_node.port))
+                                .await
+                                .map_err(|e| Status::internal(format!("Failed to connect to DataNode: {}", e)))?;
+                            
+                            let get_data_request = Request::new(GetDataRequest {
+                                filename: block_id.clone(),
+                            });
+                            
+                            let response = client.get_data(get_data_request)
+                                .await
+                                .map_err(|e| Status::internal(format!("Failed to get data from DataNode: {}", e)))?;
+                            
+                            file_data.extend_from_slice(&response.into_inner().data);
                         }
                     }
                 }
             }
-            let response = ReadFileResponse { data: serde_json::to_vec(&data).unwrap() };
+            let response = ReadFileResponse { data: file_data };
             Ok(Response::new(response))
         } else {
             Err(Status::not_found("File not found"))
