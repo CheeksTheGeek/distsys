@@ -31,7 +31,6 @@ message GetDataResponse {
 message PutDataRequest {
     string block_id = 1;
     bytes data = 2;
-    repeated string nodes_left = 3;
 }
 
 message PutDataResponse {
@@ -41,6 +40,7 @@ message PutDataResponse {
 message ReplicationPassthroughRequest {
     string block_id = 1;
     bytes data = 2;
+    repeated string nodes_left = 3;
 }
 
 message ReplicationPassthroughResponse {
