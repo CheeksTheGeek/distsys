@@ -1,8 +1,9 @@
+use clap::{Arg, Command};
 use tonic::transport::Server;
 use datanode::data_node_server::DataNodeServer;
 use dnlib::DataNodeService;
-use std::env;
-
+use std::net::SocketAddr;
+use std::str::FromStr;
 mod dnlib;
 mod datanode {
     tonic::include_proto!("datanode");
@@ -10,19 +11,47 @@ mod datanode {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args: Vec<String> = env::args().collect();
-    let port = args.get(1).expect("Port not specified").parse::<u16>()?;
-    let data_dir = args.get(2).expect("Data directory not specified").to_string();
 
-    let addr = format!("[::1]:{}", port).parse()?;
-    let data_node_service = DataNodeService::new(data_dir);
+    let matches = Command::new("HDFS Datanode")
+        .version("0.1.0")
+        .about("HDFS Datanode")
+        // .arg_required_else_help(true)
+        .arg(
+            Arg::new("port")
+                .short('p')
+                .long("port")
+                .value_name("PORT")
+                .help("Sets the port to listen on")
+        )
+        .arg(
+            Arg::new("datadir")
+                .short('d')
+                .long("datadir")
+                .value_name("DATADIR")
+                .help("Sets the datadir")
+        )
+        .get_matches();
 
-    println!("DataNode server listening on {}", addr);
+    let port = matches.get_one::<String>("port").map(String::as_str).unwrap_or("4210");
+    let datadir = matches.get_one::<String>("datadir").map(String::as_str).unwrap_or("data");
 
-    Server::builder()
-        .add_service(DataNodeServer::new(data_node_service))
-        .serve(addr)
-        .await?;
+    let addr = format!("0.0.0.0:{}", port);
+    let datanode: DataNodeService = DataNodeService::new(datadir.to_string());
+
+    let addr = SocketAddr::from_str(&addr).unwrap();
+    println!("DataNode server starting on {}", addr);
+    println!("Waiting for incoming requests...");
+
+    let server = Server::builder()
+        .add_service(DataNodeServer::new(datanode))
+        .serve(addr);
+
+    // Removed the periodic printing as it's not needed for a daemon
+
+    match server.await {
+        Ok(_) => println!("Server shut down gracefully"),
+        Err(e) => println!("Server error: {}", e),
+    }
 
     Ok(())
 }
