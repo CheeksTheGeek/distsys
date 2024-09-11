@@ -71,36 +71,6 @@ impl DataNode for DataNodeService {
         Ok(Response::new(PutDataResponse { success: true }))
     }
 
-
-    // async fn replication_passthrough(&self, request: Request<ReplicationPassthroughRequest>) -> Result<Response<ReplicationPassthroughResponse>, Status> {
-    //     let req = request.into_inner();
-    //     if req.data.is_empty() {
-    //         return Ok(Response::new(ReplicationPassthroughResponse { success: false }));
-    //     }
-    //     let state = self.state.read().await;
-    //     let file_path = Path::new(&state.data_dir).join(req.block_id.clone());
-    //     let mut file = OpenOptions::new().create(true).write(true).open(file_path).map_err(|e| Status::internal(format!("Failed to create file: {}", e)))?;
-    //     file.write_all(&req.data).map_err(|e| Status::internal(format!("Failed to write file: {}", e)))?;
-    //     file.flush().map_err(|e| Status::internal(format!("Failed to flush file: {}", e)))?;
-    //     // Forward data to the next data node for replication
-    //     for node in &req.nodes_left {
-    //         // Implement forwarding logic here
-    //         // Call the PutData method on the next data node, in this case, we can just call ReplicationPassthroughRequest again with the remaining nodes
-    //         // This is done by creating a new ReplicationPassthroughRequest with the remaining nodes and calling the method again
-    //         let put_data_request = ReplicationPassthroughRequest {
-    //             block_id: req.block_id.clone(),
-    //             data: req.data.clone(),
-    //             nodes_left: req.nodes_left[1..].to_vec(),
-    //         };
-    //         let put_data_response = self.replication_passthrough(Request::new(put_data_request)).await?;
-    //         if !put_data_response.into_inner().success {
-    //             return Ok(Response::new(ReplicationPassthroughResponse { success: false }));
-    //         }
-    //     }
-    
-    
-    //     Ok(Response::new(ReplicationPassthroughResponse { success: true }))
-    // }
 }
 
 
