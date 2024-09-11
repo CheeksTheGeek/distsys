@@ -4,14 +4,21 @@ use std::path::Path;
 use tonic::{Request, Response, Status};
 use crate::datanode::data_node_server::DataNode;
 use crate::datanode::{PulseRequest, PulseResponse, GetDataRequest, GetDataResponse, PutDataRequest, PutDataResponse, ReplicationPassthroughRequest, ReplicationPassthroughResponse};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+pub struct DataNodeState {
+    data_dir: String,
+}
+
 
 pub struct DataNodeService {
-    data_dir: String,
+    state: Arc<RwLock<DataNodeState>>,
 }
 
 impl DataNodeService {
     pub fn new(data_dir: String) -> Self {
-        DataNodeService { data_dir }
+        DataNodeService { state: Arc::new(RwLock::new(DataNodeState { data_dir })) }
     }
 }
 
@@ -39,7 +46,8 @@ impl DataNode for DataNodeService {
     //      3. Return the data to the NameNode
     async fn get_data(&self, request: Request<GetDataRequest>) -> Result<Response<GetDataResponse>, Status> {
         let req = request.into_inner();
-        let file_path = Path::new(&self.data_dir).join(req.filename);
+        let state = self.state.read().await;
+        let file_path = Path::new(&state.data_dir).join(req.filename);
         let mut file = File::open(file_path).map_err(|e| Status::internal(format!("Failed to open file: {}", e)))?;
         let mut data = Vec::new();
         file.read_to_end(&mut data).map_err(|e| Status::internal(format!("Failed to read file: {}", e)))?;
@@ -54,7 +62,8 @@ impl DataNode for DataNodeService {
 
     async fn put_data(&self, request: Request<PutDataRequest>) -> Result<Response<PutDataResponse>, Status> {
         let req = request.into_inner();
-        let file_path = Path::new(&self.data_dir).join(req.block_id);
+        let state = self.state.read().await;
+        let file_path = Path::new(&state.data_dir).join(req.block_id);
         let mut file = OpenOptions::new().create(true).write(true).open(file_path).map_err(|e| Status::internal(format!("Failed to create file: {}", e)))?;
         file.write_all(&req.data).map_err(|e| Status::internal(format!("Failed to write file: {}", e)))?;
         file.flush().map_err(|e| Status::internal(format!("Failed to flush file: {}", e)))?;
