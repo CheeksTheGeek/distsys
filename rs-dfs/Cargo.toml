@@ -18,3 +18,15 @@ tonic = "0.12.2"
 
 [build-dependencies]
 tonic-build = "0.12.2"
+
+[[bin]]
+name = "namenode"
+path = "src/prj/namenode/main.rs"
+
+[[bin]]
+name = "datanode"
+path = "src/prj/datanode/main.rs"
+
+[[bin]]
+name = "client"
+path = "src/prj/client/main.rs"
