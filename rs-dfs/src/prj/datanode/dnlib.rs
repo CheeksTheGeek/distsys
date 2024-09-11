@@ -51,7 +51,6 @@ impl DataNode for DataNodeService {
     //    2. Write the data to the file
     //    3. Flush the file writer
     //    4. Forward the data to the next data node for replication
-
     async fn put_data(&self, request: Request<PutDataRequest>) -> Result<Response<PutDataResponse>, Status> {
         let req = request.into_inner();
         let file_path = Path::new(&self.data_dir).join(req.block_id);
