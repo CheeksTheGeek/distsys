@@ -164,9 +164,9 @@ impl NameNode for NameNodeService {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let matches = Command::new("HDFS Namenode")
+    let matches = Command::new("DFS Namenode")
         .version("0.1.0")
-        .about("HDFS Namenode")
+        .about("DFS Namenode")
         .arg(
             Arg::new("port")
                 .short('p')

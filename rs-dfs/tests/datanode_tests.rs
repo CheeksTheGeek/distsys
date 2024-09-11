@@ -2,9 +2,8 @@ use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::Path;
 use tonic::{Request, Response, Status};
-use crate::datanode::data_node_server::DataNode;
-use crate::datanode::{PulseRequest, PulseResponse, GetDataRequest, GetDataResponse, PutDataRequest, PutDataResponse, ReplicationPassthroughRequest, ReplicationPassthroughResponse};
-
+use datanode::data_node_server::DataNode;
+use datanode::{PulseRequest, PulseResponse, GetDataRequest, GetDataResponse, PutDataRequest, PutDataResponse, ReplicationPassthroughRequest, ReplicationPassthroughResponse};
 pub struct DataNodeService {
     data_dir: String,
 }

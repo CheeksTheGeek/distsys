@@ -12,9 +12,9 @@ mod datanode {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
-    let matches = Command::new("HDFS Datanode")
+    let matches = Command::new("DFS Datanode")
         .version("0.1.0")
-        .about("HDFS Datanode")
+        .about("DFS Datanode")
         // .arg_required_else_help(true)
         .arg(
             Arg::new("port")
