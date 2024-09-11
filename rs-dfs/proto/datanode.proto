@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package datanode;
+
+service DataNode {
+    rpc Pulse(PulseRequest) returns (PulseResponse) {}
+    rpc GetData(GetDataRequest) returns (GetDataResponse) {}
+    rpc PutData(PutDataRequest) returns (PutDataResponse) {}
+    rpc ReplicationPassthrough(ReplicationPassthroughRequest) returns (ReplicationPassthroughResponse) {}
+}
+
+// can act as both a heartbeat (pulse = true) and a initial ping (pulse = false)
+message PulseRequest {
+    bool pulse = 1;
+    optional string host = 2;
+    optional int32 port = 3;
+}
+
+message PulseResponse {
+    bool success = 1;
+}
+
+message GetDataRequest {
+    string filename = 1;
+}
+
+message GetDataResponse {
+    bytes data = 1;
+}
+
+message PutDataRequest {
+    string block_id = 1;
+    bytes data = 2;
+    repeated string nodes_left = 3;
+}
+
+message PutDataResponse {
+    bool success = 1;
+}
+
+message ReplicationPassthroughRequest {
+    string block_id = 1;
+    bytes data = 2;
+}
+
+message ReplicationPassthroughResponse {
+    bool success = 1;
+}

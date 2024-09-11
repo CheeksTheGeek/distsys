@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package namenode;
+
+service NameNode {
+    rpc ReadFile(ReadFileRequest) returns (ReadFileResponse) {}
+    rpc WriteFile(WriteFileRequest) returns (WriteFileResponse) {}
+    // Phoenixing in business is the process of company into an insolvency process with the business/assets being transferred to a new company owned by some or all of the previous management
+    rpc Phoenixing(NodeAddress) returns (PhoenixingResult) {} // Phoenixing the data means that the data originally stored in the now defunct datanode is transferred (redistributed) to a new datanode(s)
+    rpc AssignBlocksForFile(AssignBlocksForFileRequest) returns (AssignBlocksForFileResponse) {}
+    rpc BlockSize(BlockSizeRequest) returns (BlockSizeResponse) {}
+}
+
+message PhoenixingResult {
+    bool success = 1;
+    string message = 2;
+    repeated NodeAddress new_nodes = 3;
+}
+
+message NodeAddress {
+    string host = 1;
+    uint32 port = 2;
+}
+
+message PulseRequest {
+    string message = 1;
+}
+
+message PulseResponse {
+    string message = 1;
+}
+
+message ReadFileRequest {
+    string filename = 1;
+}
+
+message ReadFileResponse {
+    bytes data = 1;
+}
+
+message WriteFileRequest {
+    string filename = 1;
+    bytes data = 2;
+    repeated string nodes_left = 3;
+}
+
+message WriteFileResponse {
+    bool success = 1;
+}
+
+message AssignBlocksForFileRequest {
+    string filename = 1;
+}
+
+message AssignBlocksForFileResponse {
+    repeated string nodes = 1;
+}
+
+message BlockSizeRequest {
+    bool pulse = 1;
+}
+
+message BlockSizeResponse {
+    uint32 block_size = 1;
+}

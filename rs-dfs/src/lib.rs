@@ -10,8 +10,6 @@ pub struct NodeAddress {
     pub host: String,
     pub port: u16,
 }
-
-#[derive(Debug, Serialize, Deserialize)]
 pub struct SerializableError {
     message: String,
 }
@@ -21,5 +19,3 @@ impl std::fmt::Display for SerializableError {
         write!(f, "{}", self.message)
     }
 }
-
-impl std::error::Error for SerializableError {}
