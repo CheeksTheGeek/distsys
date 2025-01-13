@@ -1,0 +1,62 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build All",
+            "type": "shell",
+            "command": "for dir in dfsc dfsdn dfsnn; do (cd $dir && make all && mv build/output/app ../$dir); done",
+            "group": {
+                "kind": "build",
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build all projects using make and move executables to parent directory"
+        },
+        {
+            "label": "Clean All",
+            "type": "shell",
+            "command": "for dir in dfsc dfsdn dfsnn; do (cd $dir && make clean && rm -f ../$dir); done",
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Run All",
+            "type": "shell",
+            "command": "for dir in dfsc dfsdn dfsnn; do ./$dir; done",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [],
+            "detail": "Run all compiled projects from the parent directory"
+        },
+        {
+            "label": "Format All Code",
+            "type": "shell",
+            "command": "for dir in dfsc dfsdn dfsnn; do clang-format -i $dir/**/*.{cpp,hpp,cppm}; done",
+            "group": "test",
+            "problemMatcher": [],
+            "detail": "Format the code in all projects using clang-format"
+        },
+        {
+            "label": "Run All Tests",
+            "type": "shell",
+            "command": "for dir in dfsc dfsdn dfsnn; do (cd $dir && make test); done",
+            "group": "test",
+            "problemMatcher": [],
+            "detail": "Run the tests for all projects"
+        },
+        {
+            "label": "Build and Run All",
+            "dependsOn": [
+                "Build All",
+                "Run All"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}

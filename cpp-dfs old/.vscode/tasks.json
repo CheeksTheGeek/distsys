@@ -1,0 +1,79 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build cpp_dfs",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "all"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build the cpp-dfs project using make"
+        },
+        {
+            "label": "Clean cpp_dfs",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "clean"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Run cpp_dfs",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "run"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [],
+            "detail": "Run the compiled cpp-dfs project"
+        },
+        {
+            "label": "Format Code",
+            "type": "shell",
+            "command": "clang-format",
+            "args": [
+                "-i",
+                "${workspaceFolder}/**/*.{cpp,hpp,cppm}"
+            ],
+            "group": "test",
+            "problemMatcher": [],
+            "detail": "Format the code using clang-format"
+        },
+        {
+            "label": "Run Tests",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "test"
+            ],
+            "group": "test",
+            "problemMatcher": [],
+            "detail": "Run the tests using your preferred testing framework"
+        },
+        {
+            "label": "Build and Run",
+            "dependsOn": [
+                "Build cpp_dfs",
+                "Run cpp_dfs"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}
